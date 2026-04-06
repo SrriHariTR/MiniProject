@@ -98,7 +98,7 @@ export default function App() {
   useEffect(() => {
     const checkServer = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:5000/");
+        const res = await fetch("https://miniproject-khjk.onrender.com/");
         setServerStatus(res.ok ? "online" : "offline");
       } catch {
         setServerStatus("offline");
@@ -122,10 +122,13 @@ export default function App() {
       formData.append("file", file);
 
       try {
-        const res = await fetch("http://127.0.0.1:5000/predict", {
-          method: "POST",
-          body: formData,
-        });
+        const res = await fetch(
+          "https://miniproject-khjk.onrender.com/predict",
+          {
+            method: "POST",
+            body: formData,
+          },
+        );
 
         const data = await res.json();
 

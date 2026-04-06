@@ -1,17 +1,27 @@
 from flask import Flask, request, jsonify
-from tensorflow.keras.models import load_model
 import numpy as np
 from PIL import Image
 from flask_cors import CORS
+import os
 
-# Create app FIRST ✅
 app = Flask(__name__)
-
-# Enable CORS AFTER app creation ✅
 CORS(app)
 
-# Load model
-model = load_model("model.h5")
+print("🚀 Server started (without model)")
+
+# Lazy load model
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        print("⏳ Loading model...")
+        from tensorflow.keras.models import load_model
+        model_path = os.path.join(os.path.dirname(__file__), "model.h5")
+        model = load_model(model_path)
+        print("✅ Model loaded")
+    return model
+
 
 class_names = [
     "Bacterial Spot",
@@ -26,9 +36,11 @@ class_names = [
     "Healthy"
 ]
 
+
 @app.route("/", methods=["GET"])
 def home():
     return {"status": "ok"}
+
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -38,6 +50,8 @@ def predict():
     file = request.files["file"]
 
     try:
+        model = get_model()   # ✅ lazy load here
+
         img = Image.open(file).convert("RGB").resize((256, 256))
         img_array = np.array(img) / 255.0
         img_array = np.expand_dims(img_array, axis=0)
