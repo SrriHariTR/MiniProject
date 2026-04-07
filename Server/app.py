@@ -3,24 +3,19 @@ import numpy as np
 from PIL import Image
 from flask_cors import CORS
 import os
+from tensorflow.keras.models import load_model
 
 app = Flask(__name__)
 CORS(app)
 
-print("🚀 Server started (without model)")
+print("🚀 Server starting...")
 
-# Lazy load model
-model = None
+# ✅ Load model ONCE at startup (IMPORTANT)
+model_path = os.path.join(os.path.dirname(__file__), "model.h5")
 
-def get_model():
-    global model
-    if model is None:
-        print("⏳ Loading model...")
-        from tensorflow.keras.models import load_model
-        model_path = os.path.join(os.path.dirname(__file__), "model.h5")
-        model = load_model(model_path)
-        print("✅ Model loaded")
-    return model
+print("⏳ Loading model at startup...")
+model = load_model(model_path)
+print("✅ Model loaded successfully")
 
 
 class_names = [
@@ -47,10 +42,8 @@ def predict():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
-    file = request.files["file"]
-
     try:
-        model = get_model()   # ✅ lazy load here
+        file = request.files["file"]
 
         img = Image.open(file).convert("RGB").resize((256, 256))
         img_array = np.array(img) / 255.0
@@ -63,7 +56,7 @@ def predict():
 
         return jsonify({
             "disease": class_names[index],
-            "confidence": confidence
+            "confidence": round(confidence, 2)
         })
 
     except Exception as e:
