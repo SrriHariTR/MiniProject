@@ -50,6 +50,35 @@ The model classifies uploaded leaves into one of the following categories:
 
 ---
 
+## 🧠 Model Architecture & Training
+
+### 📊 Dataset
+The model was trained on the standard **PlantVillage tomato leaf dataset**. 
+- **Balanced Data**: The dataset is perfectly balanced with 10,000 training images and 1,000 validation images across the 10 classes.
+- **Image Specifications**: All images were verified for integrity and standardized to a size of 256×256 pixels.
+
+### ⚙️ Preprocessing
+To maximize learning efficiency, the following preprocessing pipeline was implemented:
+- **Normalization**: Pixel values were scaled down from a 0–255 range to 0–1.
+- **Performance Optimization**: Leveraged TensorFlow’s `tf.data` dataset pipeline alongside **prefetching** to accelerate data loading and prevent hardware bottlenecks during training.
+- *(Note: Since the dataset was cleanly balanced out-of-the-box, no artificial SMOTE or class weighting was required).*
+
+### 🏗️ Model Building (DenseNet121)
+The classification engine is built using **DenseNet121**. DenseNet connects each layer to every other layer in a feed-forward fashion, drastically improving feature reuse and gradient flow—which is exceptionally powerful for texture-heavy image sets like leaf diseases.
+
+**Transfer Learning Approach**:
+- The model was initialized with weights pretrained on **ImageNet**.
+- Base layers were **frozen** to strictly utilize them as feature extractors.
+- **Custom Top Layers** were appended, consisting of:
+  - Fully connected Dense layers for the 10-class output.
+  - **Batch Normalization** for learning stability.
+  - **Dropout** steps for aggressive regularization.
+- The network was compiled using the **Adam optimizer** and **Categorical Cross-Entropy loss**.
+
+**Results**: The model achieved a robust **validation accuracy of ~92.8%** with stable convergence and no problematic overfitting.
+
+---
+
 ## 💻 Getting Started
 
 ### 1. Prerequisites
