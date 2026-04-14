@@ -10,7 +10,7 @@ A full-stack, AI-powered web application that identifies tomato leaf diseases us
   - Symptoms
   - Prevention Tips
   - Treatment Methods
-- **Multi-Language Support**: AI insights can be translated intelligently with 1-click into 9 Indian regional languages using the Google Translate API (`deep-translator` package).
+- **Native Multi-Language Support (i18n)**: The entire Frontend UI (headers, buttons, labels) automatically translates with 1-click into 9 Indian regional languages alongside the AI-generated insights, providing a fully native and accessible agronomical experience.
 - **Graceful Fallback**: If internet is down or the Groq API limit is reached, the application seamlessly falls back to a vast built-in plant pathology knowledge base with zero downtime. 
 - **Server-Side Caching**: Translations and AI generation are cached in-memory. If a user asks for "Early Blight" in "Tamil", it fetches instantly without using API calls on subsequent requests.
 - **Modern UI**: Clean, responsive, interactive React front-end styled beautifully with Tailwind CSS and Lucide Icons.
@@ -121,7 +121,7 @@ npm run dev
 
 ## 🌍 Supported Regional Languages for Translation
 
-English is selected natively by default. Available translations:
+The entire Application UI and AI output supports full native translation. English is selected natively by default. Available translations:
 - Hindi (हिंदी)
 - Tamil (தமிழ்)
 - Telugu (తెలుగు)
