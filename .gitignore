@@ -9,6 +9,12 @@ node_modules/
 Thumbs.db
 
 # ========================
+# Node / Frontend
+# ========================
+node_modules/
+package-lock.json  # Root level lockfiles if any
+
+# ========================
 # Python / Backend
 # ========================
 __pycache__/
@@ -24,6 +30,14 @@ env/
 # ========================
 *.pt
 *.pkl
+*.h5
+
+# ========================
+# Test / Temp files
+# ========================
+temp_uploaded_img.png
+test_predict.py
+Server/image.png
 
 # ========================
 # Build folders
