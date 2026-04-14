@@ -1,199 +1,210 @@
 import { useState, useEffect } from "react";
-import { Upload, Leaf, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import {
+  Upload,
+  Leaf,
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  Stethoscope,
+  ShieldCheck,
+  FlaskConical,
+  Sparkles,
+} from "lucide-react";
 
-interface DiseaseResult {
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:10000";
+
+interface PredictionResult {
   disease: string;
   confidence: number;
+}
+
+interface AnalysisResult {
   description: string;
   symptoms: string[];
   prevention: string[];
   treatment: string[];
 }
 
-const mockDiseases: Record<string, DiseaseResult> = {
-  early_blight: {
-    disease: "Early Blight",
-    confidence: 94.5,
-    description:
-      "Early blight is a common fungal disease caused by Alternaria solani that affects tomato plants, particularly older leaves.",
-    symptoms: [
-      "Dark brown spots with concentric rings (target-like pattern)",
-      "Yellowing of leaves around the spots",
-      "Lower leaves affected first",
-      "Leaf drop in severe cases",
-    ],
-    prevention: [
-      "Use disease-free seeds and transplants",
-      "Practice crop rotation (3-4 year cycle)",
-      "Provide adequate spacing for air circulation",
-      "Water at the base of plants, avoid wetting foliage",
-      "Apply mulch to prevent soil splash onto leaves",
-    ],
-    treatment: [
-      "Remove and destroy infected leaves",
-      "Apply fungicides containing chlorothalonil or copper",
-      "Use organic options like neem oil or baking soda spray",
-      "Ensure proper plant nutrition, especially potassium",
-    ],
-  },
-  late_blight: {
-    disease: "Late Blight",
-    confidence: 92.3,
-    description:
-      "Late blight is a devastating disease caused by Phytophthora infestans, the same pathogen that caused the Irish potato famine.",
-    symptoms: [
-      "Large, irregular brown or purplish-black lesions",
-      "White fuzzy growth on leaf undersides",
-      "Rapid spread during cool, wet weather",
-      "Can affect fruits, causing brown, greasy spots",
-    ],
-    prevention: [
-      "Plant resistant varieties when possible",
-      "Avoid overhead irrigation",
-      "Ensure good air circulation",
-      "Remove volunteer tomato and potato plants",
-      "Monitor weather for favorable disease conditions",
-    ],
-    treatment: [
-      "Apply preventive fungicides before symptoms appear",
-      "Remove and destroy all infected plant material",
-      "Use copper-based or systemic fungicides",
-      "In severe cases, remove entire plants to prevent spread",
-    ],
-  },
-  healthy: {
-    disease: "Healthy Leaf",
-    confidence: 98.7,
-    description:
-      "The tomato leaf appears healthy with no signs of disease or stress.",
-    symptoms: [
-      "Vibrant green color",
-      "No spots, lesions, or discoloration",
-      "Normal leaf structure and texture",
-      "Good turgor pressure",
-    ],
-    prevention: [
-      "Continue current good practices",
-      "Maintain consistent watering schedule",
-      "Monitor regularly for early disease detection",
-      "Ensure balanced fertilization",
-      "Keep garden area clean and weed-free",
-    ],
-    treatment: [
-      "No treatment needed",
-      "Continue routine care and monitoring",
-      "Maintain optimal growing conditions",
-    ],
-  },
-};
+// ── Helper Components ──────────────────────────────────────────────────────────
+
+function InfoList({
+  icon,
+  title,
+  items,
+  bulletColor,
+  bullet,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  items: string[];
+  bulletColor: string;
+  bullet: string;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide">
+        {icon}
+        {title}
+      </h4>
+      <ul className="space-y-2">
+        {items.map((item, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+            <span className={`${bulletColor} mt-0.5 flex-shrink-0 font-bold`}>
+              {bullet === "num" ? `${i + 1}.` : bullet}
+            </span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ── Main App ───────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [prediction, setPrediction] = useState<DiseaseResult | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [serverStatus, setServerStatus] = useState<
-    "checking" | "online" | "offline"
-  >("checking");
+  const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
 
+  const [language, setLanguage] = useState<string>("en");
+
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const [predictError, setPredictError] = useState<string | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [serverStatus, setServerStatus] = useState<"checking" | "online" | "offline">("checking");
+
+  // ── Server heartbeat ────────────────────────────────────────────────────────
   useEffect(() => {
-    const checkServer = async () => {
+    const check = async () => {
       try {
-        const res = await fetch("https://miniproject-khjk.onrender.com/");
+        const res = await fetch(`${API_BASE}/`);
         setServerStatus(res.ok ? "online" : "offline");
       } catch {
         setServerStatus("offline");
       }
     };
-
-    checkServer();
-    const interval = setInterval(checkServer, 5000);
-
-    return () => clearInterval(interval);
+    check();
+    const t = setInterval(check, 5000);
+    return () => clearInterval(t);
   }, []);
 
+  // ── ML Prediction ────────────────────────────────────────────────────────────
   const handleImageUpload = async (file: File) => {
     const reader = new FileReader();
-
     reader.onload = async (e) => {
       setSelectedImage(e.target?.result as string);
       setPrediction(null);
+      setAnalysis(null);
+      setPredictError(null);
+      setAnalyzeError(null);
+      setIsPredicting(true);
 
       const formData = new FormData();
       formData.append("file", file);
 
       try {
-        const res = await fetch(
-          "https://miniproject-khjk.onrender.com/predict",
-          {
-            method: "POST",
-            body: formData,
-          },
-        );
-
-        const data = await res.json();
-
-        // Map backend response to your UI format
-        const key = data.disease.toLowerCase().replace(/ /g, "_");
-        const diseaseData = mockDiseases[key];
-
-        setPrediction({
-          disease: data.disease, // ✅ THIS FIXES YOUR ISSUE
-          confidence: data.confidence,
-          description: diseaseData?.description || "No description available",
-          symptoms: diseaseData?.symptoms || [],
-          prevention: diseaseData?.prevention || [],
-          treatment: diseaseData?.treatment || [],
+        const res = await fetch(`${API_BASE}/predict`, {
+          method: "POST",
+          body: formData,
         });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Server error: ${res.status}`);
+        }
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setPrediction({ disease: data.disease, confidence: data.confidence });
       } catch (err) {
-        console.error("Error:", err);
+        setPredictError(err instanceof Error ? err.message : "Prediction failed.");
+      } finally {
+        setIsPredicting(false);
       }
     };
-
     reader.readAsDataURL(file);
   };
+
+  // ── Gemini/Groq Analysis ──────────────────────────────────────────────────────────
+  const handleGetAnalysis = async (targetLang: string = language) => {
+    if (!prediction) return;
+    setAnalyzeError(null);
+    setIsAnalyzing(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disease: prediction.disease, lang: targetLang }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAnalysis({
+        description: data.description || "",
+        symptoms: data.symptoms || [],
+        prevention: data.prevention || [],
+        treatment: data.treatment || [],
+      });
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // ── File input handlers ──────────────────────────────────────────────────────
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith("image/")) {
-      handleImageUpload(file);
-    }
+    if (file && file.type.startsWith("image/")) handleImageUpload(file);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      handleImageUpload(file);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
+    if (file && file.type.startsWith("image/")) handleImageUpload(file);
   };
 
   const resetApp = () => {
     setSelectedImage(null);
     setPrediction(null);
+    setAnalysis(null);
+    setPredictError(null);
+    setAnalyzeError(null);
+    setIsPredicting(false);
+    setIsAnalyzing(false);
   };
 
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLang = e.target.value;
+    setLanguage(newLang);
+    if (prediction && analysis) {
+      handleGetAnalysis(newLang);
+    }
+  };
+
+  const isHealthy = prediction?.disease === "Healthy";
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
+
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mb-4 flex justify-center">
             <div
-              className={`px-6 py-2 rounded-full text-white font-semibold shadow ${
-                serverStatus === "online"
-                  ? "bg-green-500"
-                  : serverStatus === "offline"
-                    ? "bg-red-500"
-                    : "bg-yellow-500"
+              className={`px-5 py-1.5 rounded-full text-white text-sm font-medium shadow ${
+                serverStatus === "online" ? "bg-green-500"
+                : serverStatus === "offline" ? "bg-red-500"
+                : "bg-yellow-500"
               }`}
             >
               {serverStatus === "online" && "🟢 Backend Connected"}
@@ -201,72 +212,121 @@ export default function App() {
               {serverStatus === "checking" && "🟡 Checking Server..."}
             </div>
           </div>
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Leaf className="w-10 h-10 text-green-600" />
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <Leaf className="w-9 h-9 text-green-600" />
             <h1 className="text-4xl font-bold text-gray-800">
               Tomato Leaf Disease Detector
             </h1>
           </div>
-          <p className="text-gray-600">
-            Upload a tomato leaf image to identify diseases and get prevention
-            tips
+          <p className="text-gray-500 text-sm">
+            Upload a leaf image — AI predicts the disease instantly, then click{" "}
+            <strong>Get Analysis</strong> for expert disease insights.
           </p>
         </div>
 
-        {/* Disease Detection Result Box */}
+        {/* Prediction Error */}
+        {predictError && (
+          <div className="mb-6 rounded-2xl shadow p-5 text-center bg-gradient-to-r from-orange-500 to-red-500">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <AlertCircle className="w-5 h-5 text-white" />
+              <h2 className="text-lg font-bold text-white">Prediction Failed</h2>
+            </div>
+            <p className="text-white/90 text-sm">{predictError}</p>
+          </div>
+        )}
+
+        {/* Result Banner — shown after prediction */}
         {prediction && (
           <div
-            className={`mb-6 rounded-2xl shadow-lg p-6 text-center ${
-              prediction.disease === "Healthy Leaf"
+            className={`mb-6 rounded-2xl shadow-lg p-6 text-center transition-all ${
+              isHealthy
                 ? "bg-gradient-to-r from-green-500 to-emerald-600"
                 : "bg-gradient-to-r from-red-500 to-rose-600"
             }`}
           >
             <div className="flex items-center justify-center gap-3 mb-2">
-              {prediction.disease === "Healthy Leaf" ? (
-                <CheckCircle2 className="w-8 h-8 text-white" />
+              {isHealthy ? (
+                <CheckCircle2 className="w-7 h-7 text-white" />
               ) : (
-                <AlertCircle className="w-8 h-8 text-white" />
+                <AlertCircle className="w-7 h-7 text-white" />
               )}
-              <h2 className="text-3xl font-bold text-white">
-                {prediction.disease === "Healthy Leaf"
-                  ? "No Disease Detected"
-                  : "Disease Detected"}
+              <h2 className="text-2xl font-bold text-white">
+                {isHealthy ? "No Disease Detected" : "Disease Detected"}
               </h2>
             </div>
-            <p className="text-5xl font-extrabold text-white mb-2">
+            <p className="text-4xl font-extrabold text-white mb-1">
               {prediction.disease}
             </p>
-            <p className="text-xl text-white/90">
+            <p className="text-white/80 text-base mb-4">
               Confidence: {prediction.confidence}%
             </p>
+
+            {/* Confidence bar */}
+            <div className="w-full max-w-xs mx-auto bg-white/30 rounded-full h-2 mb-5">
+              <div
+                className="h-2 bg-white rounded-full transition-all duration-700"
+                style={{ width: `${prediction.confidence}%` }}
+              />
+            </div>
+
+            {/* Get Analysis Button */}
+            {!analysis && !isAnalyzing && (
+              <button
+                onClick={() => handleGetAnalysis(language)}
+                className="inline-flex items-center gap-2 bg-white text-gray-800 font-semibold px-6 py-2.5 rounded-full shadow hover:shadow-md hover:scale-105 active:scale-100 transition-all duration-200"
+              >
+                <Sparkles className="w-4 h-4 text-yellow-500" />
+                Get Analysis
+              </button>
+            )}
+
+            {/* Analyzing spinner inside banner */}
+            {isAnalyzing && (
+              <div className="flex items-center justify-center gap-3 text-white">
+                <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                <span className="font-medium">Loading analysis...</span>
+              </div>
+            )}
+
+            {/* Re-analyze button if analysis is already shown */}
+            {analysis && !isAnalyzing && (
+              <button
+                onClick={() => handleGetAnalysis(language)}
+                className="inline-flex items-center gap-2 bg-white/20 text-white border border-white/40 font-medium px-5 py-2 rounded-full hover:bg-white/30 transition-all text-sm"
+              >
+                <Sparkles className="w-4 h-4" />
+                Re-analyze
+              </button>
+            )}
           </div>
         )}
 
+        {/* Main Grid: Upload + Results */}
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Upload Section */}
+
+          {/* Upload Panel */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Upload className="w-5 h-5" />
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Upload className="w-5 h-5 text-green-600" />
               Upload Image
             </h2>
 
             {!selectedImage ? (
               <div
-                className={`border-3 border-dashed rounded-xl p-8 text-center transition-colors ${
+                className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors cursor-pointer ${
                   isDragging
                     ? "border-green-500 bg-green-50"
-                    : "border-gray-300 bg-gray-50 hover:border-green-400"
+                    : "border-gray-300 bg-gray-50 hover:border-green-400 hover:bg-green-50"
                 }`}
                 onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
               >
-                <Upload className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-600 mb-2">
-                  Drag and drop an image here
+                <Upload className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                <p className="text-gray-600 font-medium mb-1">
+                  Drag and drop a leaf image
                 </p>
-                <p className="text-gray-400 text-sm mb-4">or</p>
+                <p className="text-gray-400 text-xs mb-5">JPG, PNG, WEBP supported</p>
                 <label className="inline-block">
                   <input
                     type="file"
@@ -274,14 +334,14 @@ export default function App() {
                     onChange={handleFileInput}
                     className="hidden"
                   />
-                  <span className="cursor-pointer bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors inline-block">
+                  <span className="cursor-pointer bg-green-600 text-white px-6 py-2.5 rounded-lg hover:bg-green-700 transition-colors inline-block font-medium text-sm">
                     Browse Files
                   </span>
                 </label>
               </div>
             ) : (
               <div>
-                <div className="relative rounded-lg overflow-hidden mb-4">
+                <div className="rounded-xl overflow-hidden mb-4 border border-gray-100 shadow-sm">
                   <img
                     src={selectedImage}
                     alt="Uploaded tomato leaf"
@@ -290,131 +350,161 @@ export default function App() {
                 </div>
                 <button
                   onClick={resetApp}
-                  className="w-full bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                  className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
                 >
                   Upload Another Image
                 </button>
               </div>
             )}
 
-            {selectedImage && !prediction && (
-              <div className="mt-4 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                <p className="text-gray-600 mt-2">Analyzing image...</p>
+            {/* Predicting spinner */}
+            {isPredicting && (
+              <div className="mt-5 flex flex-col items-center gap-2">
+                <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin" />
+                <p className="text-gray-500 text-sm">Running model prediction...</p>
               </div>
             )}
           </div>
 
-          {/* Results Section */}
+          {/* Analysis Panel */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Info className="w-5 h-5" />
-              Analysis Results
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Info className="w-5 h-5 text-green-600" />
+                Disease Analysis
+              </h2>
+              <select
+                value={language}
+                onChange={handleLanguageChange}
+                disabled={isAnalyzing}
+                className="text-sm border border-gray-300 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-green-500 bg-gray-50 hover:bg-gray-100 transition-colors disabled:opacity-50 appearance-none pr-8 relative"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.5rem center',
+                  backgroundSize: '1em'
+                }}
+              >
+                <option value="en">English</option>
+                <option value="hi">हिंदी (Hindi)</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="te">తెలుగు (Telugu)</option>
+                <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                <option value="ml">മലയാളം (Malayalam)</option>
+                <option value="mr">मराठी (Marathi)</option>
+                <option value="bn">বাংলা (Bengali)</option>
+                <option value="gu">ગુજરાતી (Gujarati)</option>
+                <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+              </select>
+            </div>
 
-            {!prediction ? (
+            {/* Empty state */}
+            {!prediction && !isPredicting && (
               <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-                <Leaf className="w-16 h-16 mb-4 opacity-50" />
-                <p>Upload an image to see disease analysis</p>
+                <Leaf className="w-14 h-14 mb-3 opacity-40" />
+                <p className="text-sm text-center">
+                  Upload a leaf image to detect disease,<br />
+                  then click <strong>Get Analysis</strong> for details.
+                </p>
               </div>
-            ) : (
-              <div>
-                {/* Disease Name & Confidence */}
-                <div
-                  className={`rounded-lg p-4 mb-4 ${
-                    prediction.disease === "Healthy Leaf"
-                      ? "bg-green-50 border-2 border-green-200"
-                      : "bg-red-50 border-2 border-red-200"
-                  }`}
+            )}
+
+            {/* Waiting for user to click button */}
+            {prediction && !isAnalyzing && !analysis && !analyzeError && (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                <Sparkles className="w-12 h-12 mb-3 text-yellow-400 opacity-80" />
+                <p className="text-sm text-center text-gray-500">
+                  Disease detected! Click <strong className="text-gray-700">Get Analysis</strong>
+                  <br />in the result banner above to view detailed insights.
+                </p>
+              </div>
+            )}
+
+            {/* Analyzing spinner in panel */}
+            {isAnalyzing && (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                <div className="w-10 h-10 border-4 border-yellow-200 border-t-yellow-500 rounded-full animate-spin mb-4" />
+                <p className="text-sm font-medium">Groq AI is generating insights...</p>
+                <p className="text-xs text-gray-400 mt-1">This may take a few seconds</p>
+              </div>
+            )}
+
+            {/* Analysis error */}
+            {analyzeError && !isAnalyzing && (
+              <div className="flex flex-col items-center justify-center h-48 text-center">
+                <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+                <p className="text-sm font-semibold text-red-600 mb-1">Analysis Failed</p>
+                <p className="text-xs text-gray-500 max-w-xs">{analyzeError}</p>
+                <button
+                  onClick={() => handleGetAnalysis(language)}
+                  className="mt-4 text-sm bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition-colors"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-2xl font-bold text-gray-800">
-                      {prediction.disease}
-                    </h3>
-                    {prediction.disease === "Healthy Leaf" ? (
-                      <CheckCircle2 className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <AlertCircle className="w-6 h-6 text-red-600" />
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    Confidence: {prediction.confidence}%
-                  </p>
-                </div>
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {/* Analysis Results */}
+            {analysis && !isAnalyzing && (
+              <div className="space-y-4 overflow-y-auto max-h-[480px] pr-1">
 
                 {/* Description */}
-                <div className="mb-4">
-                  <p className="text-gray-700">{prediction.description}</p>
-                </div>
+                {analysis.description && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-blue-600 mb-1.5 flex items-center gap-1.5">
+                      <Info className="w-3.5 h-3.5" /> About
+                    </h4>
+                    <p className="text-sm text-gray-700 leading-relaxed">{analysis.description}</p>
+                  </div>
+                )}
 
-                {/* Symptoms
-                <div className="mb-4">
-                  <h4 className="font-semibold text-gray-800 mb-2">
-                    Symptoms:
-                  </h4>
-                  <ul className="space-y-1">
-                    {prediction.symptoms.map((symptom, index) => (
-                      <li
-                        key={index}
-                        className="flex items-start gap-2 text-sm text-gray-700"
-                      >
-                        <span className="text-red-500 mt-1">•</span>
-                        <span>{symptom}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div> */}
+                {/* Symptoms */}
+                {analysis.symptoms.length > 0 && (
+                  <InfoList
+                    icon={<Stethoscope className="w-3.5 h-3.5 text-red-500" />}
+                    title="Symptoms"
+                    items={analysis.symptoms}
+                    bulletColor="text-red-400"
+                    bullet="•"
+                  />
+                )}
 
                 {/* Prevention */}
-                {/* <div className="mb-4">
-                  <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                    Prevention:
-                  </h4>
-                  <ul className="space-y-1">
-                    {prediction.prevention.map((tip, index) => (
-                      <li
-                        key={index}
-                        className="flex items-start gap-2 text-sm text-gray-700"
-                      >
-                        <span className="text-green-500 mt-1">•</span>
-                        <span>{tip}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div> */}
+                {analysis.prevention.length > 0 && (
+                  <InfoList
+                    icon={<ShieldCheck className="w-3.5 h-3.5 text-green-600" />}
+                    title="Prevention"
+                    items={analysis.prevention}
+                    bulletColor="text-green-500"
+                    bullet="✓"
+                  />
+                )}
 
                 {/* Treatment */}
-                {/* <div>
-                  <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-blue-600" />
-                    Treatment:
-                  </h4>
-                  <ul className="space-y-1">
-                    {prediction.treatment.map((treatment, index) => (
-                      <li
-                        key={index}
-                        className="flex items-start gap-2 text-sm text-gray-700"
-                      >
-                        <span className="text-blue-500 mt-1">•</span>
-                        <span>{treatment}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div> */}
+                {analysis.treatment.length > 0 && (
+                  <InfoList
+                    icon={<FlaskConical className="w-3.5 h-3.5 text-blue-500" />}
+                    title="Treatment"
+                    items={analysis.treatment}
+                    bulletColor="text-blue-400"
+                    bullet="num"
+                  />
+                )}
+
+                <p className="text-center text-xs text-gray-400 pt-1">
+                  Powered by Groq AI (llama-3.1-8b-instant)
+                </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Footer Note */}
-        <div className="mt-8 bg-white rounded-xl shadow p-4 text-center text-sm text-gray-600">
-          <p>
-            <strong>Note:</strong> This is a demonstration interface with mock
-            predictions. For production use, integrate with a trained ML model
-            API for accurate disease detection.
-          </p>
+        {/* Footer */}
+        <div className="mt-8 bg-white rounded-xl shadow p-4 text-center text-xs text-gray-400">
+          Disease information is generated by <strong>Groq AI</strong> and is for educational reference only.
+          Always consult an agronomist for serious crop issues.
         </div>
+
       </div>
     </div>
   );
